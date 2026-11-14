@@ -1,6 +1,6 @@
 script_name('GwarnV1')
 script_author('Ellis_Harris')
-script_version('1.2.1')
+script_version('1.2.2')
 script_description('Справочник уставов Arizona RP, штат Yuma')
 
 require 'lib.moonloader'
@@ -14,7 +14,7 @@ local new = imgui.new
 
 local cfg = inicfg.load({ settings = { accent_r = 0.20, accent_g = 0.48, accent_b = 0.82 } }, 'GwarnV1.ini')
 local json = require 'dkjson'
-local SCRIPT_VERSION = '1.2.1'
+local SCRIPT_VERSION = '1.2.2'
 local accent = new.float[3](cfg.settings.accent_r, cfg.settings.accent_g, cfg.settings.accent_b)
 local window = new.bool(false)
 local idWindow = new.bool(false)
@@ -374,9 +374,11 @@ local function checkForRulesUpdate(announce)
     local requestToken = rulesRequestToken
     rulesStatus = 'Сверяю уставы с GitHub...'
 
+    local rulesDataReceived = false
     local ok = pcall(downloadUrlToFile, rulesUrl, temporaryRulesPath, function(_, status)
         if requestToken ~= rulesRequestToken then return false end
         if status == dlstatus.STATUSEX_ENDDOWNLOAD then
+            if rulesDataReceived then return true end
             rulesDownloadInProgress = false
             os.remove(temporaryRulesPath)
             rulesStatus = 'Не удалось скачать rules.json с GitHub'
@@ -384,6 +386,7 @@ local function checkForRulesUpdate(announce)
             return false
         end
         if status ~= dlstatus.STATUS_ENDDOWNLOADDATA then return true end
+        rulesDataReceived = true
 
         rulesDownloadInProgress = false
         local file = io.open(temporaryRulesPath, 'rb')
@@ -491,10 +494,15 @@ local function checkForScriptUpdate(announce)
         if announce then sampAddChatMessage(u8:decode('{FF6666}[GwarnV1]{FFFFFF} ' .. message), -1) end
     end
 
+    local versionDataReceived = false
     local ok = pcall(downloadUrlToFile, versionUrl, versionTempPath, function(_, status)
         if requestToken ~= scriptRequestToken then return false end
-        if status == dlstatus.STATUSEX_ENDDOWNLOAD then failUpdate('Не удалось скачать version.json с GitHub'); return false end
+        if status == dlstatus.STATUSEX_ENDDOWNLOAD then
+            if versionDataReceived then return true end
+            failUpdate('Не удалось скачать version.json с GitHub'); return false
+        end
         if status ~= dlstatus.STATUS_ENDDOWNLOADDATA then return true end
+        versionDataReceived = true
 
         local manifestFile = io.open(versionTempPath, 'rb')
         if not manifestFile then failUpdate('Не удалось прочитать version.json'); return end
@@ -523,10 +531,15 @@ local function checkForScriptUpdate(announce)
         lua_thread.create(function()
             wait(250)
             if requestToken ~= scriptRequestToken then return end
+            local scriptDataReceived = false
             local downloadOk = pcall(downloadUrlToFile, canonicalScriptUrl, scriptTempPath, function(_, scriptStatus)
                 if requestToken ~= scriptRequestToken then return false end
-                if scriptStatus == dlstatus.STATUSEX_ENDDOWNLOAD then failUpdate('Не удалось скачать новую версию LUA'); return false end
+                if scriptStatus == dlstatus.STATUSEX_ENDDOWNLOAD then
+                    if scriptDataReceived then return true end
+                    failUpdate('Не удалось скачать новую версию LUA'); return false
+                end
                 if scriptStatus ~= dlstatus.STATUS_ENDDOWNLOADDATA then return true end
+                scriptDataReceived = true
 
                 local scriptFile = io.open(scriptTempPath, 'rb')
                 if not scriptFile then failUpdate('Не удалось прочитать загруженный LUA-файл'); return end
